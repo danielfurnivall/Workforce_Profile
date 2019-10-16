@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 df = pd.read_csv('W:/MFT/Workforce Profiles/Planned_Care.csv')
 print("Pre-merge length: " + str(len(df)))
 retirestats = pd.read_csv('W:/Retirement Vulnerability/now.csv')
-df = df.merge(retirestats[['Pay_Number','Over50', 'This year','1-2 years', '2-3 years', '3-5 years']], on='Pay_Number',
-              how='left')
+df = df.merge(retirestats[['Pay_Number','Over50', 'This year','1-2 years', '2-3 years', '3-5 years', 'time_to_retire',
+                           'Reg/Unreg']], on='Pay_Number', how='left')
 print("Post-merge length: " + str(len(df)))
 print(df.columns)
 from reportlab.lib.enums import TA_CENTER
@@ -102,13 +102,22 @@ def payBandWTE():
 
 def retirementProj():
     print(df['This year'].value_counts())
-    df['RetirementStatus'] = np.where(df['This year'] == 1, 'Imminent / Within 1 year',
-                                      np.where(df['1-2 years'] == 1, '1-2 years',
-                                               np.where(df['2-3 years'] == 1, '2-3 years',
-                                                        np.where(df['3-5 years'] == 1, '3-5 years', ''))))
-    overallRetirement = pd.value_counts(df['RetirementStatus'].values, sort=False)
-    overallRetirement.plot(kind='bar', color = '#003087')
+    labels = ['Imminent', 'Within a year', '1-2 years', '2-3 years', '3-5 years', '5-10 years', '>10 years']
+    bins = [-100, 0,1,2,3,5,10,100]
+
+
+    df['ProjRet'] = pd.cut(df['time_to_retire'], bins=bins, labels=labels, right=False)
+
+
+    overallRetirement = pd.value_counts(df['ProjRet'].values, sort=False)
+    print(type(overallRetirement))
+    #pivot_df = df.pivot(index='ProjRet', columns='Reg/Unreg')
+    #print(pivot_df)
     plt.style.use('seaborn')
+    plt.ylabel('Headcount')
+    plt.xlabel('Projected Retirement')
+    overallRetirement.plot(kind='bar', color = '#003087')
+
     plt.tight_layout()
     plt.savefig('W:/MFT/Workforce Profiles/retirement.png', dpi = 300)
     plt.close()
@@ -150,20 +159,41 @@ def pdfbuilder(i):
     subdir1 = Image('W:/MFT/Workforce Profiles/subdir1.png', 5.5 * inch, 3.7 * inch)
     jobfam = Image('W:/MFT/Workforce Profiles/jobfam.png', 5.5 * inch, 3.7 * inch)
     paybands = Image('W:/MFT/Workforce Profiles/paybands.png', 5.5 * inch, 3.7 * inch)
+    placeholder = Image('W:/MFT/Workforce Profiles/placeholder.png', 3 * inch, 3 * inch)
     data = [[logo, header]]
-    agetext = Paragraph('Here is an expandable paragraph where we talk about demographics. We can put in some'+
-                      ' key stats within the text automatically with Python inbuilt string formatting.', styles['Justify'])
-    subdir1text = Paragraph('Similarly, this is some text that is designed to explain the sub-directorate 1 graph above'+
+    headcount = (len(df))
+    totalwte = str(round(sum(df['WTE']), 1))
+    female = str(round(len(df[df['Sex'] == 'F']) / headcount * 100, 1))
+
+
+    depts_count = str(len(df['department'].unique()))
+    agetext = Paragraph('The '+i+' workforce comprises of '+str(headcount)+ ' employees ('+ totalwte
+                        +' WTE) and ' + depts_count + ' departments. The workforce is '+ female + ' percent female.',
+                        styles['Justify'])
+    subdir1text = Paragraph('This is some text that is designed to explain the sub-directorate 1 graph above'+
                       '. This paragraph can also include specific stats etc.', styles['Justify'])
     jobfamtext = Paragraph('Here are some words to talk about Job Families.', styles['Justify'])
     paybandstext = Paragraph('Pay band text goes here.', styles['Justify'])
-    retirementtext = Paragraph('Here are some words about retirement vulnerability.', styles['Justify'])
+    retirementtext = Paragraph('These retirement vulnerability figures are calculated from historical (3 year) leaver'
+                               +' trends. Can be separated by registered/unregistered or any other attributes as desired.',
+                               styles['Justify'])
+    sickabstext = Paragraph('Details of sickness absence will go here. Sickness absence is likely to have interesting'
+                            +' interactions with age. Data will be taken from SSTS and we should be able to provide'
+                            +' a 12 month absence profile and display as desired', styles['Justify'])
+    banktext = Paragraph('We can also provide monthly bank usage figures across the extract. This could assist '
+                        +' workforce planning goals and find potential pain points.', styles['Justify'])
+    drivtext = Paragraph('This will be populated with current driving distance to primary workplace'+
+                        ', which we can calculate using postcodes and the Bing Maps api. '
+                        +'This kind of information may be useful for assessing potential ward moves etc.',
+                         styles['Justify'])
+
     headertable = Table(data)
     headertable.setStyle(TableStyle([('VALIGN', (1, 0), (1, 0), 'MIDDLE')]))
     Story.append(headertable)
-    Story.append(ageprofimg)
-    Story.append(Spacer(1, 12))
     Story.append(agetext)
+    Story.append(Spacer(1, 12))
+    Story.append(ageprofimg)
+
     Story.append(Spacer(1, 12))
     Story.append(subdir1)
     Story.append(Spacer(1, 12))
@@ -180,6 +210,18 @@ def pdfbuilder(i):
     Story.append(retirement)
     Story.append(Spacer(1, 12))
     Story.append(retirementtext)
+    Story.append(Spacer(1, 12))
+    Story.append(placeholder)
+    Story.append(sickabstext)
+    Story.append(Spacer(1, 12))
+    Story.append(placeholder)
+    Story.append(Spacer(1, 12))
+    Story.append(banktext)
+    Story.append(Spacer(1, 12))
+    Story.append(placeholder)
+    Story.append(Spacer(1, 12))
+    Story.append(drivtext)
+    Story.append(Spacer(1, 12))
     doc.build(Story)
 
 pdfbuilder("Planned Care")
