@@ -37,6 +37,12 @@ deptlookup = {row[0]: row[1] for row in lookups.values}
 depts = df['department'].unique().tolist()
 subdirlookup = {row[0]: row[2] for row in lookups.values}
 
+#Build list of MHOs
+mho=pd.read_excel('W:/MFT/Workforce Profiles/MHO_Status.xls', date_format='%Y-%m-%d', skiprows=3)
+mhos = mho['Pay Number'].tolist()
+mhos = df[df['Pay_Number'].isin(mhos)]
+
+
 
 #The below code will be used to edit pay bands to new pay band structure
 #TODO implement
@@ -72,11 +78,17 @@ abs = pd.read_csv('W:/MFT/Workforce Profiles/absdata.csv')
 abs = abs[abs['Department'].isin(depts)] #limit absence data to only include relevant depts
 
 #Create lookups for absence
-abslookup = abs[['Department', 'WTE', 'Annual WTE', 'Maternity WTE', 'Total Abs WTE']]
-wtelookup = {row[0]: row[1] for row in abslookup.values}
-annWTE = {row[0]: row[2] for row in abslookup.values}
-matWTE = {row[0]: row[3] for row in abslookup.values}
-totalAbs = {row[0]: row[4] for row in abslookup.values}
+abslookup_dept = abs[['Department', 'WTE', 'Annual WTE', 'Maternity WTE', 'Total Abs WTE']]
+wtelookup_dept = {row[0]: row[1] for row in abslookup_dept.values}
+annWTE_dept = {row[0]: row[2] for row in abslookup_dept.values}
+matWTE_dept = {row[0]: row[3] for row in abslookup_dept.values}
+totalAbs_dept = {row[0]: row[4] for row in abslookup_dept.values}
+
+abslookup_sd = abs[['Sub-Directorate 1', 'WTE', 'Annual WTE', 'Maternity WTE', 'Total Abs WTE']]
+wtelookup_sd = {row[0]: row[1] for row in abslookup_sd.values}
+annWTE_sd = {row[0]: row[2] for row in abslookup_sd.values}
+matWTE_sd = {row[0]: row[3] for row in abslookup_sd.values}
+totalAbs_sd = {row[0]: row[4] for row in abslookup_sd.values}
 
 
 #Create groups for projected retirement
@@ -86,7 +98,24 @@ df['ProjRet'] = pd.cut(df['time_to_retire'], bins=bins, labels=labels, right=Fal
 
 
 
+leavers = pd.read_excel('W:/Starters & Leavers/Starters and Leavers - Apr 16 - Present.xlsx',
+                   sheet_name='Leavers - Apr-16 - Present')
+leavers = leavers[(leavers['Year'] == '2018/19') & (leavers['Cost Centre'].isin(cost_centres))]
+leavers['Reg/Unreg'] = np.where(leavers['Pay_Band'].isin(['2', '3', '4']), 'Unregistered', 'Registered')
+print(len(leavers))
+turnover = len(leavers) / len(df) * 100
+print(turnover)
 
+#Read in bank data
+path = 'W:/Bank Data v2/'
+grades = eval(open(path + 'Grades_dic.txt').read())
+agencies = eval(open(path + 'Agency_dic.txt').read())
+bank_data = pd.read_excel('W:/MFT/Workforce Profiles/bankdata-Sept.xlsm')
+bank_data['Department'] = bank_data['Cost Centre'].map(deptlookup)
+bank_data['Sub-Directorate 1'] = bank_data['Cost Centre'].map(subdirlookup)
+bank_data['Grade'] = bank_data['Request Grade'].map(grades)
+
+df['PayBand3'] = np.where(df['Job_Family'] == 'Medical And Dental', df['Sub_Job_Family'], df['Pay_Band'])
 
 
 #the below creates specific areas of scope for older peoples'
@@ -190,6 +219,7 @@ def econcans():
             print(i + df['Pay_Number']+"in")
         # else:
         #     print(i + "not in")
+
 
 def jobtrain():
     #This pulls the jobtrain report entitled "All jobs with no. vacancies, no. applicants"
@@ -344,9 +374,17 @@ def jobFamWTE():
 #todo composition of job family in partnerships/acute
 
 
+
 def payBandWTE():
     plt.style.use('seaborn')
-    paybandpiv = pd.pivot_table(df, values='WTE', index='Pay_Band', aggfunc = np.sum)
+
+
+    #capture medical and dental subdir1
+    df['PayBand3'] = df['PayBand3'].map({'A': '8A', 'B': '8B', 'C': '8C', 'D': '8D', '2': '2',
+                                         '3': '3', '4': '4', '5': '5', '6': '6', '7': '7',
+                                         '9': '9', 'Consultant': 'Consultant', 'Other': 'Other (Career Grades)',
+                                         'Training Grades': 'Training Grades'})
+    paybandpiv = pd.pivot_table(df, values='WTE', index='PayBand3', aggfunc = np.sum)
     ax = paybandpiv.plot(kind='bar', color='#003087', legend=False)
     for i, each in enumerate(paybandpiv.index):
         for col in paybandpiv.columns:
@@ -391,10 +429,10 @@ def absenceTypes():
     abspiv = pd.pivot_table(abs, values='Absence WTE', index='Department', aggfunc=np.sum)
     abspiv['Department'] = abspiv.index
     abspiv = abspiv.rename(columns={'Absence WTE':'Sickness WTE'})
-    abspiv['Inpost WTE'] = abspiv['Department'].map(wtelookup)
-    abspiv['A/L WTE'] = abspiv['Department'].map(annWTE)
-    abspiv['Maternity WTE'] = abspiv['Department'].map(matWTE)
-    abspiv['Total Absence'] = abspiv['Department'].map(totalAbs)
+    abspiv['Inpost WTE'] = abspiv['Department'].map(wtelookup_dept)
+    abspiv['A/L WTE'] = abspiv['Department'].map(annWTE_dept)
+    abspiv['Maternity WTE'] = abspiv['Department'].map(matWTE_dept)
+    abspiv['Total Absence'] = abspiv['Department'].map(totalAbs_dept)
     abspiv['Other WTE'] = abspiv['Total Absence'] - abspiv['A/L WTE'] - abspiv['Sickness WTE'] - \
                               abspiv['Maternity WTE']
     abspiv['Overall Absence %'] = abspiv['Total Absence'] / abspiv['Inpost WTE'] * 100
@@ -427,15 +465,15 @@ def absenceTypes():
     return abspiv
 
 def sortoutbank():
-    path = 'W:/Bank Data v2/'
-    grades = eval(open(path + 'Grades_dic.txt').read())
-    agencies = eval(open(path + 'Agency_dic.txt').read())
+    # path = 'W:/Bank Data v2/'
+    # grades = eval(open(path + 'Grades_dic.txt').read())
+    # agencies = eval(open(path + 'Agency_dic.txt').read())
+    bank = bank_data
+    #bank = pd.read_excel('W:/MFT/Workforce Profiles/bankdata-Sept.xlsm')
 
-    bank = pd.read_excel('W:/MFT/Workforce Profiles/bankdata-Sept.xlsm')
     bank = bank[bank['Cost Centre'].isin(cost_centres)]
-    bank['Department'] = bank['Cost Centre'].map(deptlookup)
-    bank['Sub-Directorate 1'] = bank['Cost Centre'].map(subdirlookup)
-    bank['Grade'] = bank['Request Grade'].map(grades)
+    print(bank.head(10))
+
     renames = {'Nursing': 'Nursing & Midwifery',
                'Admin & Clerical': 'Administrative Services',
                'Midwifery': 'Nursing & Midwifery'}
@@ -466,7 +504,7 @@ def sortoutbank():
     bankpiv_dept = bankpiv_dept[['Department','Hours Requested']]
     bankpiv_dept = bankpiv_dept.sort_values('Hours Requested', ascending=False).head(15).round(1)
     bankpiv_dept['WTE Requested'] = round(bankpiv_dept['Hours Requested'] / (4.5*37.5), 1)
-    bankpiv_dept['Overall Absence WTE'] = bankpiv_dept['Department'].map(totalAbs)
+    bankpiv_dept['Overall Absence WTE'] = bankpiv_dept['Department'].map(totalAbs_dept)
     bankpiv_dept['Net Bank Requests'] = bankpiv_dept['WTE Requested'] - bankpiv_dept['Overall Absence WTE']
     bankpiv_dept = bankpiv_dept.round(1)
     bankpiv_sub = pd.pivot_table(bank.round({'Hours Requested':1}), values='Hours Requested', index='Sub-Directorate 1',
@@ -475,7 +513,14 @@ def sortoutbank():
     bankpiv_sub['Sub-Directorate 1'] = bankpiv_sub.index
     bankpiv_sub = bankpiv_sub[['Sub-Directorate 1', 'Hours Requested']]
 
-    bankpiv_sub = bankpiv_sub.sort_values('Hours Requested', ascending=False).head(10).round(1)
+    bankpiv_sub = bankpiv_sub.sort_values('Hours Requested', ascending=False).round(1)
+
+    bankpiv_sub['WTE Requested'] = round(bankpiv_sub['Hours Requested'] / (4.5 * 37.5), 1)
+    bankpiv_sub['Overall Absence WTE'] = bankpiv_sub['Sub-Directorate 1'].map(totalAbs_sd)
+    bankpiv_sub['Net Bank Requests'] = bankpiv_sub['WTE Requested'] - bankpiv_sub['Overall Absence WTE']
+    bankpiv_sub = bankpiv_sub.round(1)
+
+    print(bankpiv_sub)
     total_reqs = len(bank)
     total_hours = np.sum(bank['Hours Requested'])
 
@@ -488,11 +533,28 @@ def average_x(jobfam, flag):
     avx = df[df['Job_Family'] == jobfam]
     if flag == 1:
         avx = avx[avx['Reg/Unreg'] == 'Registered']
+        numstaff = len(avx)
+        numleavers = len(leavers[(leavers['Job Family'] == jobfam) & (leavers['Reg/Unreg'] == "Registered")])
+        # print(str(numstaff) + " Registered Staff")
+        # print(str(numleavers) + " registered leavers in 2018/19")
+
+        xturnover = numleavers / numstaff * 100
+        # print(xturnover)
     if flag == 0:
         avx = avx[avx['Reg/Unreg'] == 'Unregistered']
+        numstaff = len(avx)
+        numleavers = len(leavers[(leavers['Job Family'] == jobfam) & (leavers['Reg/Unreg'] == "Unregistered")])
+        # print(str(numstaff) + " Unregistered Staff")
+        # print(str(numleavers) + " unreg leavers in 2018/19")
+
+        xturnover = numleavers / numstaff * 100
+        # print(xturnover)
+    if flag == 2:
+        xturnover = 0
 
     age = int(np.average(avx['Age']))
-
+    #turnover = len(leavers[leavers['Job Family'] == jobfam])/ len(avx) * 100
+    #print(turnover)
     print(int(age))
     female = round(len(avx[avx['Sex'] == 'F']) / len(avx) * 100, 1)
     yos = round(np.average(avx['Years_Of_Service']), 1)
@@ -511,7 +573,7 @@ def average_x(jobfam, flag):
     print(scalepoint)
 
 
-    return age, female, yos, band, scalepoint, wte, wte_55
+    return age, female, yos, band, scalepoint, wte, wte_55, xturnover
 def retirement_vuln_depts():
     df['Over55'] = df['Age'].apply(lambda x: 'Staff over 55' if x >= 55 else 'Under 55')
     vulndepts = pd.pivot_table(df, values='WTE', index='department', columns='Over55',
@@ -524,21 +586,41 @@ def retirement_vuln_depts():
     vulndepts['Total WTE'] = vulndepts['Under 55'] +  vulndepts['Staff over 55']
     vulndepts['% Total Staff over 55'] = vulndepts['Staff over 55'] / vulndepts['Total WTE'] * 100
     vulndepts = vulndepts[vulndepts['Total WTE'] > 20]
-    vulndepts = vulndepts.sort_values('% Total Staff over 55', ascending=False).head(15).round(1)
+    vulndepts = vulndepts.sort_values('% Total Staff over 55', ascending=False).head(10).round(1)
     vulndepts['department'] = vulndepts.index
     vulndepts['Registered Staff over 55'] = vulndepts['department'].map(reglookup)
     vulndepts = vulndepts.rename(columns = {'Registered Staff over 55':"Registered >55", 'Staff over 55':'Total >55',
                                 'Total WTE':'Inpost WTE', '% Total Staff over 55':'% Total >55', 'department':'Department'})
-    vulndepts = vulndepts[['Department','Registered >55','Total >55', 'Inpost WTE', '% Total >55']]
+    vulndepts = vulndepts[['Department','Inpost WTE','Registered >55','Total >55', '% Total >55']]
 
     within_year = pd.pivot_table(df[df['ProjRet'] == 'Within a year'], values='WTE', index='department', aggfunc=np.sum)
     within_year['Department'] = within_year.index
-    within_year['Total WTE'] = within_year['Department'].map(wtelookup)
+    within_year['Total WTE'] = within_year['Department'].map(wtelookup_dept)
     within_year = within_year[within_year['Total WTE'] >= 5]
     within_year['% Retiring Within a Year'] = within_year['WTE'] / within_year['Total WTE'] * 100
     within_year = within_year.sort_values('% Retiring Within a Year', ascending=False)
     within_year = within_year[['Department', 'Total WTE', '% Retiring Within a Year']].round(1).head(15)
+
+
     return vulndepts, within_year
+
+def bank_reasons():
+    bankr = bank_data
+    bankr = bankr[bankr['Cost Centre'].isin(cost_centres)]
+    print(bankr.columns)
+    bank_reason_piv = pd.pivot_table(bankr, values='Request Id', index='Request Reason', aggfunc=pd.Series.nunique)
+    bank_reason_piv['Request Reason'] = bank_reason_piv.index
+    #bank_reason_piv = bank_reason_piv.reset_index()
+    bank_reason_piv['Number of Requests '] = bank_reason_piv['Request Id']
+
+    sum_reasons =np.sum(bank_reason_piv['Request Id'])
+    bank_reason_piv['% Requests'] = round(bank_reason_piv['Number of Requests '] / sum_reasons * 100, 1)
+    bank_reason_piv = bank_reason_piv[['Request Reason','Number of Requests ', '% Requests']]
+    print(bank_reason_piv)
+    return bank_reason_piv
+    #bank_reason = bank_reason[bank_reason['Request Type'] > ]
+    # bankr = bankr[bankr['']]
+
 
 
 def pdfbuilder(i):
@@ -554,6 +636,7 @@ def pdfbuilder(i):
     bank_fill, bank_agency, bank_dept, bank_sub, bank_total_requests, bank_total_hours_requested = sortoutbank()
     abs_pivot = absenceTypes()
     vulndepts, within_year = retirement_vuln_depts()
+    bankreasons = bank_reasons()
 
     doc = SimpleDocTemplate(r"w://MFT/Workforce Profiles/" + i + "-email.pdf", rightMargin=30, leftMargin=30,
                             topMargin=10, bottomMargin=10)
@@ -628,6 +711,15 @@ def pdfbuilder(i):
     subdir1piv['Sub-Directorate 1'] = subdir1piv.index
     subdir1piv = subdir1piv[['Sub-Directorate 1', 'Registered', 'Unregistered', 'Total']]
     subdir1piv['% Registered'] = round(subdir1piv['Registered'] / subdir1piv['Total'] * 100, 1)
+    subdir1piv['% Unregistered'] = 100 - subdir1piv['% Registered']
+    subdir1piv['% Unregistered'] = subdir1piv['Unregistered'].astype(str) + " (" + round(subdir1piv['% Unregistered'], 1).astype(
+        str) + "%)"
+    subdir1piv['% Registered'] = subdir1piv['Registered'].astype(str) + " (" + subdir1piv['% Registered'].astype(str) + "%)"
+    subdir1piv.rename(columns={'Registered':'placholder1', 'Unregistered':'placholder2',
+                               '% Registered': 'Registered', '% Unregistered':'Registered'})
+    subdir1piv = subdir1piv[['Sub-Directorate 1','% Registered', '% Unregistered', 'Total']]
+
+
     sd1table = Table(np.vstack((list(subdir1piv), np.array(subdir1piv))).tolist())
     print(sd1table)
     q = (len(subdir1piv.columns) - 1, len(subdir1piv))
@@ -660,12 +752,12 @@ def pdfbuilder(i):
                                         ]))
     q = (len(bank_sub.columns) - 1, len(bank_sub))
     banksdtable = Table(np.vstack((list(bank_sub), np.array(bank_sub))).tolist())
-    banksdtable.setStyle(TableStyle([('BACKGROUND', (0, 0), (1, 0), colors.HexColor("#005EB8")),
-                                        ('TEXTCOLOR', (0, 0), (1, 0), colors.HexColor("#E8EDEE")),
-                                        ('FONTSIZE', (0, 1), (1, q[1]), 8),
-                                        ('ALIGN', (1, 1), (1, q[1]), 'CENTER'),
-                                        ('BOX', (0, 1), (1, q[1]), 0.006 * inch, colors.black),
-                                        ('BOX', (0, 0), (1, 0), 0.006 * inch, (0, 0, 0))
+    banksdtable.setStyle(TableStyle([('BACKGROUND', (0, 0), (q[0], 0), colors.HexColor("#005EB8")),
+                                        ('TEXTCOLOR', (0, 0), (q[0], 0), colors.HexColor("#E8EDEE")),
+                                        ('FONTSIZE', (0, 1), (q[0], q[1]), 8),
+                                        ('ALIGN', (1, 1), (q[0], q[1]), 'CENTER'),
+                                        ('BOX', (0, 1), (q[0], q[1]), 0.006 * inch, colors.black),
+                                        ('BOX', (0, 0), (q[0], 0), 0.006 * inch, (0, 0, 0))
                                         ]))
     q = (len(jobtrain_pivot.columns) - 1, len(jobtrain_pivot))
     jttable = Table(np.vstack((list(jobtrain_pivot), np.array(jobtrain_pivot))).tolist())
@@ -685,14 +777,17 @@ def pdfbuilder(i):
            #Paragraph('Average age: '+str(round(nursed[0])), styles['avgtab']),
            #Paragraph(str(nursed[1])+'% female, '+str(1-nursed[1])+ '% male', styles['avgtab']),
            Paragraph(str(nursed[2])+' Average Years of Service', styles['avgtab']),
+           Paragraph('Turnover: ' + str(round(nursed[7], 1)) + '%', styles['avgtab']),
            Paragraph('Most Common Band: '+str(nursed[3]), styles['avgtab']),
            Paragraph('Average Increment Point: '+str(nursed[4]), styles['avgtab'])]
+
     hcswd = average_x('Nursing And Midwifery', 0)
     hcsw = [Paragraph('<b>Healthcare Support Worker</b>', styles['avgtab']),
            # Paragraph('Average age: '+str(round(hcswd[0])), styles['avgtab']),
            Paragraph('WTE: ' + str(hcswd[5]) + ' (' + str(hcswd[6]) + ' % aged >55)', styles['avgtab']),
            #Paragraph(str(hcswd[1])+'% female', styles['avgtab']),
            Paragraph(str(hcswd[2])+' Average Years of Service', styles['avgtab']),
+           Paragraph('Turnover: ' + str(round(hcswd[7], 1)) + '%', styles['avgtab']),
            Paragraph('Most Common Band: '+str(hcswd[3]), styles['avgtab']),
            Paragraph('Average Increment Point: '+str(hcswd[4]), styles['avgtab'])]
     medicd = average_x('Medical And Dental',2)
@@ -702,7 +797,7 @@ def pdfbuilder(i):
            # Paragraph(str(medicd[1])+'% female', styles['avgtab']),
            Paragraph(str(medicd[2])+' Average Years of Service' , styles['avgtab']),
            Paragraph('Consultant WTE: '+str(medicd[5]), styles['avgtab']),
-             Paragraph('Training Grades WTE: ' + str(medicd[7]), styles['avgtab']),
+           Paragraph('Training Grades WTE: ' + str(medicd[7]), styles['avgtab']),
            Paragraph('Other WTE: '+str(medicd[6]), styles['avgtab'])]
     ahpd = average_x('Allied Health Profession', 2)
     AHP = [Paragraph('<b>Allied Health Profession</b>', styles['avgtab']),
@@ -710,6 +805,7 @@ def pdfbuilder(i):
            Paragraph('WTE: ' + str(ahpd[5]) + ' (' + str(ahpd[6]) + ' % aged >55)', styles['avgtab']),
            #Paragraph(str(ahpd[1])+' % female', styles['avgtab']),
            Paragraph(str(ahpd[2])+' Average Years of Service', styles['avgtab']),
+           Paragraph('Turnover: ' + str(round(ahpd[7], 1)) + '%', styles['avgtab']),
            Paragraph('Most Common Band: '+str(ahpd[3]), styles['avgtab']),
            Paragraph('Average Increment Point: '+str(ahpd[4]), styles['avgtab'])]
 
@@ -745,6 +841,18 @@ def pdfbuilder(i):
                                     ]))
     retirement_table = Table([[retirement, wityear]])
     retirement_table.setStyle((TableStyle([('VALIGN', (0,0), (0,0), 'TOP')])))
+
+
+    #TODO FIX THIS
+    q = (len(bankreasons.columns) - 1, len(bankreasons))
+    bankreasons_table = Table(np.vstack((list(bankreasons), np.array(bank_reasons()))).tolist(), colWidths=[1.4 * inch] * 3)
+    bankreasons_table.setStyle(TableStyle([('BACKGROUND', (0,0), (q[0],0), colors.HexColor("#005EB8")),
+                                    ('FONTSIZE', (0, 0), (q[0], q[1]), 8),
+                                    ('ALIGN', (1, 1), (q[0],q[1]), 'CENTER'),
+                                    ('TEXTCOLOR', (0, 0), (q[0], 0), colors.HexColor("#E8EDEE")),
+                                    ('BOX', (0,0), (q[0], 0), 0.006 * inch, colors.black),
+                                    ('BOX', (0,0), (q[0], q[1]), 0.006 * inch, colors.black)
+                                    ]))
 
     #TODO REMOVE FROM HERE TO NEXT TODO AFTER MFT OLDER PEOPLES
     # q = (len(gframe.columns) - 1, len(gframe))
@@ -795,16 +903,17 @@ def pdfbuilder(i):
     Story.append(Spacer(1, 24))
     Story.append(Paragraph('Longer Term Projections', styles['subtitle']))
     Story.append(Spacer(1, 24))
-    Story.append(Paragraph('Absence Statistics</seq>', styles['subtitle']))
+    Story.append(Paragraph('Absence Statistics', styles['subtitle']))
     Story.append(Spacer(1, 24))
-    Story.append(Paragraph('Backfill Statistics</seq>', styles['subtitle']))
+    Story.append(Paragraph('Backfill Statistics', styles['subtitle']))
     Story.append(Spacer(1, 24))
     Story.append(Paragraph('Further Data Requests', styles['subtitle']))
     Story.append(Spacer(1, 24))
     Story.append(PageBreak())
-    Story.append(Paragraph('Workforce In-Post (November 2019)', styles['subtitle']))
+    Story.append(Paragraph('<seqChain order = "level_1 level_2"/> <seq id="level_1"/>.'+
+                           'Workforce In-Post (November 2019)', styles['subtitle']))
     Story.append(Spacer(1,12))
-    Story.append(Paragraph('The ' + i + ' workforce comprises of ' + str(f'{headcount:,}') + ' employees (' + str(totalwte) +
+    Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The ' + i + ' workforce comprises of ' + str(f'{headcount:,}') + ' employees (' + str(totalwte) +
         ' WTE) and ' + depts_count + ' departments. The workforce is ' + female + '% female and'
         + ' the average employee is ' + avage + ' years old.', styles['Justify']))
 
@@ -816,8 +925,8 @@ def pdfbuilder(i):
     Story.append(Spacer(1,12))
     Story.append(subdir1)
     Story.append(Spacer(1, 12))
-    Story.append(Paragraph('The above graph shows the ' +i+ ' workforce, separated by sub-directorate.'
-    +'The table below shows the split between registered and unregistered staff across all '+
+    Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The above graph shows the ' +i+ ' workforce, separated by sub-directorate.'
+    +'The table below shows the split between registered and unregistered Nursing and Midwifery staff across all '+
                             'sub-directorates involved in the workstream. "Registered" status indicates a pay band of 5'
                             +' or above.', styles['Justify']))
     Story.append(Spacer(1,12))
@@ -825,12 +934,12 @@ def pdfbuilder(i):
     Story.append(Spacer(1, 12))
     Story.append(jobfam)
     Story.append(Spacer(1, 12))
-    Story.append(Paragraph('The above graph shows the composition of the '+i+' workforce by Job Family.',
+    Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The above graph shows the composition of the '+i+' workforce by Job Family.',
                            styles['Justify']))
     Story.append(Spacer(1, 12))
     Story.append(paybands)
     Story.append(Spacer(1, 12))
-    Story.append(Paragraph('The above graph shows the WTE by Pay Band across the '+i+' workforce.'+
+    Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The above graph shows the WTE by Pay Band across the '+i+' workforce.'+
                             'The median banding across this workforce is '+str(int(bandav))+'.', styles['Justify']))
     Story.append(Spacer(1, 24))
     # Story.append(Paragraph('Key Roles', styles['subtitle']))
@@ -850,11 +959,11 @@ def pdfbuilder(i):
     #                        styles['Justify']))
     # Story.append(Spacer(1, 12))
     #Story.append(etable)
-    #Story.append(PageBreak())
-    Story.append(Paragraph('Recruitment Activity (June 1st - 31st October 2019)', styles['subtitle']))
+    Story.append(PageBreak())
+    Story.append(Paragraph('<seq id = "level_1"/>. Recruitment Activity (June 1st - 31st October 2019)', styles['subtitle']))
 
     Story.append(Spacer(1,12))
-    Story.append(Paragraph('Between June 1st and November 20th 2019, cost centres associated with the ' + i +
+    Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b> Between June 1st and November 20th 2019, cost centres associated with the ' + i +
                        ' workstream created ' + str(jtvacs) +
                        ' new vacancies on JobTrain. These vacancies had an average of ' + str(round(jtapps, 1)) +
                        ' applicants, including ' + str(
@@ -866,12 +975,19 @@ def pdfbuilder(i):
     Story.append(Spacer(1,12))
     Story.append(jobvacs)
     Story.append(PageBreak())
-    Story.append(Paragraph('Retirement Projections', styles['subtitle']))
+    Story.append(Paragraph('<seq id = "level_1"/>. Retirement Projections', styles['subtitle']))
     Story.append(Spacer(1,12))
-    Story.append(Paragraph('Across the '+i+' workforce, an estimated '+str(int(retiring_year))+ ' employees ('+
+    Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. Across the '+i+
+                           ' workforce, an estimated '+str(int(retiring_year))+ ' employees ('+
                                str(round(retiring_percent, 1))+'%) are expected to retire within the next year.'+
                                 ' All retirement estimates are calculated from historical (3 year) leaver'
-                               +' trends based on job family, sex, pay band and Mental Health Officer status. It is'+
+                               +' trends based on job family, sex, pay band and Mental Health Officer status. '
+                                +'There are currently ' + str(len(mhos))+
+                           ' staff with mental health officers (MHO) status within the '+i+ ' workforce. Traditionally,'
+                           +' MHOs can be expected to retire near 55.',
+                            styles['Justify']))
+    Story.append(Spacer(1, 12))
+    Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. It is'+
                                ' important to stress that these are estimates based on the assumption that previous '+
                                "trends will continue. In reality, many factors contribute to an employee's retirement"
                                 +' decision and estimates. Employees categorised as "Within a year" also '+
@@ -879,38 +995,42 @@ def pdfbuilder(i):
                                  +'calendar year.',
                             styles['Justify']))
     Story.append(Spacer(1,12))
-    Story.append(Paragraph('The below graph estimates retirement risk for the '+i+' workforce.'+
-                              ' The below table shows the '+str(len(vulndepts))+
+    Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The below graph estimates retirement '
+                           +'risk for the '+i+' workforce.'+' The below table shows the '+str(len(vulndepts))+
                                ' departments with the highest percentage of staff estimated to retire within a year. ',
                                styles['Justify']))
-    Story.append(Spacer(1,12))
+
+    Story.append(Spacer(1, 12))
     Story.append(retirement_table)
     Story.append(Spacer(1, 12))
-    Story.append(Paragraph('Longer Term - Staff over 55', styles['subtitle']))
+    Story.append(Paragraph('<seq id = "level_1"/>. Longer Term - Staff over 55', styles['subtitle']))
     Story.append(Spacer(1,12))
-    Story.append(Paragraph('The table below shows the departments with the highest proportion of staff who are over '
+    Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The table below shows the departments with the highest proportion of staff who are over '
                            +'the age of 55.', styles['Justify']))
     Story.append(Spacer(1, 12))
     Story.append(vulndeptstable)
 
     Story.append(PageBreak())
 
-    Story.append(Paragraph('Absence Statistics - September 2019', styles['subtitle']))
+    Story.append(Paragraph('<seq id = "level_1"/>. Absence Statistics - September 2019', styles['subtitle']))
     Story.append(Spacer(1,12))
-    Story.append(Paragraph('The below chart shows the proportion of WTE allocated to annual leave, maternity leave'
+    Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The below chart shows the proportion of WTE allocated to annual leave, maternity leave'
                            +', sickness and other absence and service delivery.', styles['Justify']))
     Story.append(Spacer(1,12))
     Story.append(pie)
     Story.append(Spacer(1,24))
-    Story.append(Paragraph('The below table shows the '+str(len(abs_pivot))+ ' departments (>20 inpost WTE) with the highest overall absence'
+    Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The below table shows the '+str(len(abs_pivot))+ ' departments (>20 inpost WTE) with the highest overall absence'
                             +' percentages in the ' +i+ ' workforce in September 2019.', styles['Justify']))
     Story.append(Spacer(1, 12))
     Story.append(abs_table1)
     Story.append(PageBreak())
-    Story.append(Paragraph('Backfill Statistics - September 2019', styles['subtitle']))
+    Story.append(Paragraph('<seq id = "level_1"/>. Backfill Statistics - September 2019', styles['subtitle']))
 
     Story.append(Spacer(1, 12))
-    Story.append(Paragraph('The '+i+' workforce made '+ str(f'{round(bank_total_requests, 1):,}') + ' bank fill requests in '+
+
+
+
+    Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The '+i+' workforce made '+ str(f'{round(bank_total_requests, 1):,}') + ' bank fill requests in '+
                          'September 2019, totalling '
                          + str(f'{round(bank_total_hours_requested, 1):,}')+ ' hours. Of these, '+str(f'{len(bank_fill):,}')+
                          ' shifts were filled by bank staff and '+str(len(bank_agency))+ ' were filled by agency staff '
@@ -918,21 +1038,37 @@ def pdfbuilder(i):
                          str(round((len(bank_fill) + len(bank_agency)) / bank_total_requests * 100,1))+'%.',
                          styles['Justify']))
     Story.append(Spacer(1, 12))
+    Story.append(Paragraph(
+        '<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The below table shows the proportion of bank requests '
+        + ' for each request type.', styles['Justify']))
+    Story.append(Spacer(1, 12))
+    Story.append(bankreasons_table)
+    Story.append(Spacer(1, 12))
 
-    Story.append(Paragraph('The table below shows the ' + str(len(bank_dept)) +
+    Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The table below shows the ' + str(len(bank_dept)) +
                            ' departments with the highest number of bank requests across'
                         + ' the ' + i + ' workforce during September 2019. Net bank requests (i.e. where greater bank '
                         + 'WTE is requested than overall absence WTE) may warrant investigation of workload, capacity, '
                         +'etc.', styles['Justify']))
     Story.append(Spacer(1, 12))
     Story.append(bankdepttable)
-    Story.append(Spacer(1,48))
-    Story.append(Paragraph('Further data requests', styles['subtitle']))
+    Story.append(PageBreak())
+    Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The table below shows bank usage '
+                           +'for all Sub-Directorates within the '+i+' workforce.', styles['Justify']))
     Story.append(Spacer(1, 12))
-    Story.append(Paragraph('If you require more detailed data or further bespoke analysis, please email '
+    Story.append(banksdtable)
+    Story.append(Spacer(1,48))
+    Story.append(Paragraph('<seq id = "level_1"/>. Further data requests', styles['subtitle']))
+    Story.append(Spacer(1, 12))
+    Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. If you require more detailed data or further bespoke analysis, please email '
                              + '<u>daniel.furnivall@ggc.scot.nhs.uk</u>', styles['Justify']))
     doc.build(Story)
+#
+#sortoutbank()
+# average_x('Nursing And Midwifery', 0)
 
+# average_x('Nursing And Midwifery', 1)
 #absenceTypes()
-pdfbuilder("MFT Older Peoples'")
+pdfbuilder("MFT Older Peoples' Workstream")
 #econcans()
+#bank_reasons()
