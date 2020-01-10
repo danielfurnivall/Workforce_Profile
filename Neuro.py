@@ -9,6 +9,8 @@ from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, PageBreak
 from reportlab.lib import colors
 import datetime
+
+from tkinter.filedialog import askopenfilename
 plt.rcParams['savefig.transparent']=True
 from decimal import Decimal
 
@@ -20,7 +22,11 @@ print("Pre-merge length: " + str(len(df)))
 #This reads the retirement file - created every month using "retirement lookup creator.py" in
 #"RetirementProjections" pycharm project
 #TODO change to prompt
-retirestats = pd.read_csv('W:/Retirement Vulnerability/retirementvulnerability13-11-2019.csv')
+retire_data = askopenfilename(initialdir='//ntserver5/generalDB/WorkforceDB/Retirement Vulnerability',
+                           filetypes=(("CSV File", "*.csv"), ("All Files", "*.*")),
+                           title="Choose the relevant recruitment file."
+                           )
+retirestats = pd.read_csv(retire_data)
 
 
 #This adds retirement projection figures to each employee in the extract
@@ -74,7 +80,12 @@ print(df['BandNumeric'].value_counts())
 print(df['Pay_Band'].value_counts())
 
 #Read in area balanced scorecard data
-abs = pd.read_csv('W:/MFT/Workforce Profiles/absdata.csv')
+abs_data = askopenfilename(initialdir='//ntserver5/generalDB/WorkforceDB/Workforce Monthly Reports/Monthly_Reports',
+                           filetypes=(("Excel File", "*.xls"), ("All Files", "*.*")),
+                           title="Choose the relevant absence file."
+                           )
+abs = pd.read_excel(abs_data, sheet_name='Department')
+# abs = pd.read_csv('W:/MFT/Workforce Profiles/absdata.csv')
 abs = abs[abs['Department'].isin(depts)] #limit absence data to only include relevant depts
 
 #Create lookups for absence
@@ -224,7 +235,11 @@ def econcans():
 def jobtrain():
     #This pulls the jobtrain report entitled "All jobs with no. vacancies, no. applicants"
     #TODO turn this into a prompt
-    jt1 = pd.read_csv('w:/MFT/workforce profiles/recruitment.csv')
+    rec_data = askopenfilename(initialdir='//ntserver5/generalDB/WorkforceDB/MFT/Workforce Profiles',
+                           filetypes=(("CSV File", "*.csv"), ("All Files", "*.*")),
+                           title="Choose the relevant recruitment file."
+                           )
+    jt1 = pd.read_csv(rec_data)
     jt1['Job Live Date'] = pd.to_datetime(jt1['Job Live Date'], dayfirst=True)
     jt1['Month'] = jt1['Job Live Date'].map(lambda x: x.strftime('%m-%Y'))
     jt1['Department'] = jt1['APPROVAL_Cost_Code'].map(deptlookup)
@@ -596,7 +611,7 @@ def retirement_vuln_depts():
     within_year = pd.pivot_table(df[df['ProjRet'] == 'Within a year'], values='WTE', index='department', aggfunc=np.sum)
     within_year['Department'] = within_year.index
     within_year['Total WTE'] = within_year['Department'].map(wtelookup_dept)
-    within_year = within_year[within_year['Total WTE'] >= 5]
+    within_year = within_year[within_year['Total WTE'] >= 10]
     within_year['% Retiring Within a Year'] = within_year['WTE'] / within_year['Total WTE'] * 100
     within_year = within_year.sort_values('% Retiring Within a Year', ascending=False)
     within_year = within_year[['Department', 'Total WTE', '% Retiring Within a Year']].round(1).head(15)
@@ -997,7 +1012,7 @@ def pdfbuilder(i):
     Story.append(Spacer(1,12))
     Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The below graph estimates retirement '
                            +'risk for the '+i+' workforce.'+' The below table shows the '+str(len(vulndepts))+
-                               ' departments with the highest percentage of staff estimated to retire within a year. ',
+                               ' departments (WTE >10) with the highest percentage of staff estimated to retire within a year. ',
                                styles['Justify']))
 
     Story.append(Spacer(1, 12))
