@@ -129,7 +129,7 @@ print(turnover)
 path = 'W:/Bank Data v2/'
 grades = eval(open(path + 'Grades_dic.txt').read())
 agencies = eval(open(path + 'Agency_dic.txt').read())
-bank_data = pd.read_excel('W:/MFT/Workforce Profiles/bankdata-Sept.xlsm')
+bank_data = pd.read_csv('W:/MFT/Workforce Profiles/bankdatajan.csv')
 bank_data['Department'] = bank_data['Cost Centre'].map(deptlookup)
 bank_data['Sub-Directorate 1'] = bank_data['Cost Centre'].map(subdirlookup)
 bank_data['Grade'] = bank_data['Request Grade'].map(grades)
@@ -1080,7 +1080,7 @@ def pdfbuilder(i):
 
 
     Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The '+i+' workforce made '+ str(f'{round(bank_total_requests, 1):,}') + ' bank fill requests in '+
-                         'September 2019, totalling '
+                         'December 2019, totalling '
                          + str(f'{round(bank_total_hours_requested, 1):,}')+ ' hours. Of these, '+str(f'{len(bank_fill):,}')+
                          ' shifts were filled by bank staff and '+str(len(bank_agency))+ ' were filled by agency staff '
                          +'resulting in a fill rate of '+
@@ -1096,7 +1096,7 @@ def pdfbuilder(i):
 
     Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The table below shows the ' + str(len(bank_dept)) +
                            ' departments with the highest number of bank requests across'
-                        + ' the ' + i + ' workforce during September 2019. Net bank requests (i.e. where greater bank '
+                        + ' the ' + i + ' workforce during December 2019. Net bank requests (i.e. where greater bank '
                         + 'WTE is requested than overall absence WTE) may warrant investigation of workload, capacity, '
                         +'etc.', styles['Justify']))
     Story.append(Spacer(1, 12))
