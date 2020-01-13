@@ -16,7 +16,12 @@ from decimal import Decimal
 
 #This reads in the extract data.
 #TODO change this to a prompt to get the extract data instead of this
-df = pd.read_csv('W:/MFT/Workforce Profiles/OlderPeoples.csv')
+
+data_file = askopenfilename(initialdir='//ntserver5/generalDB/WorkforceDB/MFT/Workforce Profiles',
+                           filetypes=(("CSV File", "*.csv"), ("All Files", "*.*")),
+                           title="Choose the relevant staff extract."
+                           )
+df = pd.read_csv(data_file)
 print("Pre-merge length: " + str(len(df)))
 
 #This reads the retirement file - created every month using "retirement lookup creator.py" in
@@ -37,6 +42,8 @@ print("Post-merge length: " + str(len(df))) #Check to see that we have the same 
 
 cost_centres = df['Cost_Centre'].unique().tolist() #captures cost centres in a list
 
+print(pd.pivot_table(df, values='WTE', index='Cost_Centre', aggfunc = np.sum))
+
 #Below code builds dept and subdir lookups based on cost centre (can map to columns as desired)
 lookups = df[['Cost_Centre', 'department', 'Sub-Directorate 1']]
 deptlookup = {row[0]: row[1] for row in lookups.values}
@@ -52,9 +59,9 @@ mhos = df[df['Pay_Number'].isin(mhos)]
 
 #The below code will be used to edit pay bands to new pay band structure
 #TODO implement
-df['Pay_Band'] = df['Pay_Band'].map({'A':'A', 'B':'B', 'C':'C', 'D':'D', '2':'2',
+df['Pay_Band'] = df['Pay_Band'].map({'8A':'A', '8B':'B', '8C':'C', '8D':'D', '2':'2',
                                      '3':'3', '4':'4', '5':'5','6':'6', '7':'7',
-                                     '9':'9', 'Medical and Dental':'Medical and Dental'})
+                                     '9':'9', 'Medical and Dental':'Medical and Dental', 'Non AFC':'Non AFC'})
 
 bins = [0, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 100]
 labels = ['16-24', '20-24', '25-29', '30-34', '35-39', '40-44', '45-49', '50-54', '55-59', '60-64', '65+']
@@ -76,7 +83,8 @@ df['Years_Of_Service'] = (pd.datetime.now() - df['EarliestDate']).dt.days / 365.
 #The following creates a numeric band column (as opposed to string)
 df['BandNumeric'] = df['Pay_Band'].map({'A': 8, 'B': 8.25, 'C': 8.5, 'D': 8.75, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6,
                                         '7': 7,'9': 9, 'Medical and Dental': 9, 'Non AFC': 9})
-print(df['BandNumeric'].value_counts())
+print(df[df['Job_Family'] == 'Allied Health Profession']['BandNumeric'].value_counts())
+
 print(df['Pay_Band'].value_counts())
 
 #Read in area balanced scorecard data
@@ -126,7 +134,7 @@ bank_data['Department'] = bank_data['Cost Centre'].map(deptlookup)
 bank_data['Sub-Directorate 1'] = bank_data['Cost Centre'].map(subdirlookup)
 bank_data['Grade'] = bank_data['Request Grade'].map(grades)
 
-df['PayBand3'] = np.where(df['Job_Family'] == 'Medical And Dental', df['Sub_Job_Family'], df['Pay_Band'])
+df['PayBand3'] = np.where(df['Job_Family'] == 'Medical and Dental', df['Sub_Job_Family'], df['Pay_Band'])
 
 
 #the below creates specific areas of scope for older peoples'
@@ -253,9 +261,11 @@ def jobtrain():
     jtdeptlookup = {row[0]: row[2] for row in jtlookups.values}
     jtstatuslookup = {row[0]: row[3] for row in jtlookups.values} #use these if you want department or job status
     jtwtelookup = {row[0]:row[4] for row in jtlookups.values}
-    print(jt['Job Live Date'].iloc[20])
+    #print(jt['Job Live Date'].iloc[20])
 
     jt2 = jt[jt['Job Live Date'] < pd.to_datetime('10/01/2019', format='%m/%d/%Y')]
+    jt2 = jt[(jt['Job Status'] == 'Complete') | (jt['Job Status'] == 'Conditional')]
+
     jt3 = jt[jt['Count Distinct Candidate ID Number'] <= 5]
 
     plt.figure(10)
@@ -264,10 +274,11 @@ def jobtrain():
     #jtpiv1.to_csv('W:/MFT/Workforce Profiles/z.csv')
     #jt.groupby('Month')['Job Number of Vacancies']\
     ax = jtpiv1.plot(kind='bar', color='#003087', legend=False)
+    jtmax = max(jtpiv1['Job Number of Vacancies'])
     for i, each in enumerate(jtpiv1.index):
         for col in jtpiv1.columns:
             y = round(jtpiv1.ix[each][col], 1)
-            ax.text(i+0.05, y+1, y)
+            ax.text(i+0.05, y+jtmax/20, y)
     plt.title('Vacancies posted by calendar month')
     plt.xlabel('Number of vacancies')
     plt.ylabel('')
@@ -275,6 +286,9 @@ def jobtrain():
     plt.tight_layout()
     plt.savefig('W:/MFT/Workforce Profiles/jobvacs.png', dpi=300)
     plt.close()
+    numpiv = pd.pivot_table(jt2, values='Job Number of Vacancies', index='Job Title for Candidates', aggfunc = np.sum)
+    print(numpiv)
+
     jobpiv = pd.pivot_table(jt2, values='Count Distinct Candidate ID Number', index='Job Title for Candidates',
                             aggfunc=np.sum)
     jobpiv['Job Title'] = jobpiv.index
@@ -350,10 +364,12 @@ def subDir1WTE():
     plt.style.use('ggplot')
     subdirpiv = pd.pivot_table(df, values='WTE', index='Sub-Directorate 1', aggfunc = np.sum)
     ax = subdirpiv.plot(kind = 'barh', color='#003087', legend=False)
+    subdirmax = max(subdirpiv['WTE'])
+
     for i, each in enumerate(subdirpiv.index):
         for col in subdirpiv.columns:
             x = round(subdirpiv.ix[each][col], 1)
-            ax.text(x+ 10, i, x)
+            ax.text(x+ (subdirmax/10), i, x)
 
     #graph2 = df.groupby('Sub-Directorate 1')['WTE'].sum().plot(kind = 'barh', color = '#003087')
     #graph2 = subdir.plot.barh()
@@ -372,11 +388,13 @@ def jobFamWTE():
     jobfampiv = pd.pivot_table(df, values='WTE', index='Job_Family', aggfunc=np.sum)
     ax = jobfampiv.plot(kind='barh', color='#003087', legend=False)
     #graph3 = df.groupby('Job_Family')['WTE'].sum().plot(kind = 'barh', color = '#003087')
+    jobfammax = max(jobfampiv['WTE'])
+    print(jobfammax/30)
 
     for i, each in enumerate(jobfampiv.index):
         for col in jobfampiv.columns:
             x = round(jobfampiv.ix[each][col], 1)
-            ax.text(x+ 10, i, x)
+            ax.text(x + jobfammax/20, i, x)
     plt.ylabel('Job Family')
     plt.xlabel('WTE')
     plt.grid(color='#d7dede')
@@ -401,10 +419,11 @@ def payBandWTE():
                                          'Training Grades': 'Training Grades'})
     paybandpiv = pd.pivot_table(df, values='WTE', index='PayBand3', aggfunc = np.sum)
     ax = paybandpiv.plot(kind='bar', color='#003087', legend=False)
+    paymax = max(paybandpiv['WTE'])
     for i, each in enumerate(paybandpiv.index):
         for col in paybandpiv.columns:
             y = round(paybandpiv.ix[each][col],1)
-            ax.text(i-0.25, y+10, y)
+            ax.text(i-0.25, y+paymax/20, y)
     plt.ylabel('WTE')
     x_axis = ax.xaxis
     x_axis.label.set_visible(False)
@@ -424,10 +443,11 @@ def retirementProj():
     overallRetirement = overallRetirement[overallRetirement.index != '>10 years']
     plt.style.use('seaborn')
     ax = overallRetirement.plot(kind='bar', color = '#003087', legend=False)
+    retmax = max(overallRetirement['WTE'])
     for i, each in enumerate(overallRetirement.index):
         for col in overallRetirement.columns:
             y = round(overallRetirement.ix[each][col],1)
-            ax.text(i, y+10, y)
+            ax.text(i, y+retmax/20, y)
 
     plt.ylabel('WTE')
     plt.grid(color='#d7dede')
@@ -546,6 +566,8 @@ def sortoutbank():
 
 def average_x(jobfam, flag):
     avx = df[df['Job_Family'] == jobfam]
+    if len(avx) == 0:
+        return False
     if flag == 1:
         avx = avx[avx['Reg/Unreg'] == 'Registered']
         numstaff = len(avx)
@@ -576,13 +598,15 @@ def average_x(jobfam, flag):
     print(yos)
     wte = round(np.sum(avx['WTE']), 1)
     wte_55 = round(np.sum(avx[avx['Age'] > 55]['WTE']) / wte * 100, 1)
-    if jobfam == 'Medical And Dental':
+    if jobfam == 'Medical and Dental':
         cons = round(np.sum(avx[avx['Sub_Job_Family'] == 'Consultant']['WTE']), 1)
         spec = round(np.sum(avx[avx['Sub_Job_Family'] == 'Other']['WTE']), 1)
         train = round(np.sum(avx[avx['Sub_Job_Family'] == 'Training Grades']['WTE']), 1)
         return age, female, yos, wte, wte_55, cons, spec, train
+    print(avx['BandNumeric'].mode())
+    #time.sleep(1)
+    band = (int(avx['BandNumeric'].median())) #conv to int to fix
 
-    band = int(avx['BandNumeric'].mode()) #conv to int to fix
     print(band)
     scalepoint = int(np.median(avx['Scale_Point'])) #conv back to int to fix
     print(scalepoint)
@@ -670,7 +694,7 @@ def pdfbuilder(i):
     logo.hAlign = 'LEFT'
     header = 'Workforce Profile'
     subhead = Paragraph('Area : '+ i, styles['subhead'])
-    subhead2 = Paragraph('Data as of 31st October 2019', styles['subhead'])
+    subhead2 = Paragraph('Data as of 13th January 2020', styles['subhead'])
     retirement = Image('W:/MFT/Workforce Profiles/retirement.png', 4 * inch, 2.7 * inch)
     subdir1 = Image('W:/MFT/Workforce Profiles/subdir1.png', 5 * inch, 3.7 * inch)
     jobfam = Image('W:/MFT/Workforce Profiles/jobfam.png', 5.5 * inch, 3.7 * inch)
@@ -718,8 +742,9 @@ def pdfbuilder(i):
     #                               ('BOX', (0, 0), (q[0], 0), 0.006 * inch, (0, 0, 0))
     #                               ]))
 
-    subdir1piv = pd.pivot_table(df[df['Job_Family'] == 'Nursing And Midwifery'], values='WTE', index='Sub-Directorate 1', columns='Reg/Unreg',
+    subdir1piv = pd.pivot_table(df[df['Job_Family'] == 'Nursing and Midwifery'], values='WTE', index='Sub-Directorate 1', columns='Reg/Unreg',
                                 aggfunc=np.sum, fill_value=0)
+    print(subdir1piv)
     subdir1piv.to_csv('W:/MFT/Workforce Profiles/x.csv')
     subdir1piv['Total'] = subdir1piv['Unregistered'] + subdir1piv['Registered']
     subdir1piv = subdir1piv.sort_values('Total', ascending=False).round(1)
@@ -786,7 +811,7 @@ def pdfbuilder(i):
                                         ]))
 
     header = Paragraph('<b>'+str(i)+' Staff</b>', styles['tabhead'])
-    nursed = average_x('Nursing And Midwifery', 1)
+    nursed = average_x('Nursing and Midwifery', 1)
     nurse = [Paragraph('<b>Registered Nurse</b>', styles['avgtab']),
            Paragraph('WTE: '+str(nursed[5])+' ('+str(nursed[6])+' % aged >55)', styles['avgtab']),
            #Paragraph('Average age: '+str(round(nursed[0])), styles['avgtab']),
@@ -796,7 +821,7 @@ def pdfbuilder(i):
            Paragraph('Most Common Band: '+str(nursed[3]), styles['avgtab']),
            Paragraph('Average Increment Point: '+str(nursed[4]), styles['avgtab'])]
 
-    hcswd = average_x('Nursing And Midwifery', 0)
+    hcswd = average_x('Nursing and Midwifery', 0)
     hcsw = [Paragraph('<b>Healthcare Support Worker</b>', styles['avgtab']),
            # Paragraph('Average age: '+str(round(hcswd[0])), styles['avgtab']),
            Paragraph('WTE: ' + str(hcswd[5]) + ' (' + str(hcswd[6]) + ' % aged >55)', styles['avgtab']),
@@ -805,7 +830,7 @@ def pdfbuilder(i):
            Paragraph('Turnover: ' + str(round(hcswd[7], 1)) + '%', styles['avgtab']),
            Paragraph('Most Common Band: '+str(hcswd[3]), styles['avgtab']),
            Paragraph('Average Increment Point: '+str(hcswd[4]), styles['avgtab'])]
-    medicd = average_x('Medical And Dental',2)
+    medicd = average_x('Medical and Dental',2)
     medic = [Paragraph('<b>Medical and Dental</b>', styles['avgtab']),
            # Paragraph('Average age: '+str(round(medicd[0])), styles['avgtab']),
            Paragraph('WTE: ' + str(medicd[3]) + ' (' + str(medicd[4]) + ' % aged >55)', styles['avgtab']),
@@ -815,7 +840,11 @@ def pdfbuilder(i):
            Paragraph('Training Grades WTE: ' + str(medicd[7]), styles['avgtab']),
            Paragraph('Other WTE: '+str(medicd[6]), styles['avgtab'])]
     ahpd = average_x('Allied Health Profession', 2)
-    AHP = [Paragraph('<b>Allied Health Profession</b>', styles['avgtab']),
+    if ahpd is False:
+        AHP = [Paragraph('<b>Allied Health Profession</b>', styles['avgtab']),
+               Paragraph('There are no AHPs in this dataset.', styles['avgtab'])]
+    else:
+        AHP = [Paragraph('<b>Allied Health Profession</b>', styles['avgtab']),
            # Paragraph('Average age: '+str(round(ahpd[0])), styles['avgtab']),
            Paragraph('WTE: ' + str(ahpd[5]) + ' (' + str(ahpd[6]) + ' % aged >55)', styles['avgtab']),
            #Paragraph(str(ahpd[1])+' % female', styles['avgtab']),
@@ -845,11 +874,14 @@ def pdfbuilder(i):
                                     ]))
     q = (len(within_year.columns) - 1, len(within_year))
     wityear = Table(np.vstack((list(within_year), np.array(within_year))).tolist(), colWidths=[1*inch] * 3)
+    print(wityear)
+    print("Test")
+    print("q[0] = "+str(q[0]) + '\n' + 'q[1] = ' + str(q[1]))
     wityear.setStyle(TableStyle([('BACKGROUND', (0,0), (q[0],0), colors.HexColor("#005EB8")),
                                     ('FONTSIZE', (0, 0), (q[0], q[1]), 6),
                                     ('ALIGN', (1, 1), (q[0],q[1]), 'CENTER'),
-                                    ('ALIGN', (0,1), (0,15), 'LEFT'),
-                                    ('ALIGN', (1,0), (2,0), 'CENTER'),
+                                    ('ALIGN', (0,1), (0,q[1]), 'LEFT'),
+                                    ('ALIGN', (1,0), (q[0],0), 'CENTER'),
                                     ('TEXTCOLOR', (0, 0), (q[0], 0), colors.HexColor("#E8EDEE")),
                                     ('BOX', (0,0), (q[0], 0), 0.006 * inch, colors.black),
                                     ('BOX', (0,0), (q[0], q[1]), 0.006 * inch, colors.black),
@@ -926,7 +958,7 @@ def pdfbuilder(i):
     Story.append(Spacer(1, 24))
     Story.append(PageBreak())
     Story.append(Paragraph('<seqChain order = "level_1 level_2"/> <seq id="level_1"/>.'+
-                           'Workforce In-Post (November 2019)', styles['subtitle']))
+                           'Workforce In-Post (January 2020)', styles['subtitle']))
     Story.append(Spacer(1,12))
     Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The ' + i + ' workforce comprises of ' + str(f'{headcount:,}') + ' employees (' + str(totalwte) +
         ' WTE) and ' + depts_count + ' departments. The workforce is ' + female + '% female and'
@@ -975,15 +1007,17 @@ def pdfbuilder(i):
     # Story.append(Spacer(1, 12))
     #Story.append(etable)
     Story.append(PageBreak())
-    Story.append(Paragraph('<seq id = "level_1"/>. Recruitment Activity (June 1st - 31st October 2019)', styles['subtitle']))
+    Story.append(Paragraph('<seq id = "level_1"/>. Recruitment Activity (June 1st 2019 - January 10th 2020)',
+                           styles['subtitle']))
 
     Story.append(Spacer(1,12))
-    Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b> Between June 1st and November 20th 2019, cost centres associated with the ' + i +
+    Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b> Between June 1st 2019 and January'
+                       +' 10th 2020, cost centres associated with the ' + i +
                        ' workstream created ' + str(jtvacs) +
                        ' new vacancies on JobTrain. These vacancies had an average of ' + str(round(jtapps, 1)) +
                        ' applicants, including ' + str(
         lessthan5) + ' roles with fewer than 5 applicants. The below table shows '
-                       + 'the ' + str(len(jobtrain_pivot)) + ' vacancies with the fewest applicants.',
+                       + 'the ' + str(len(jobtrain_pivot)) + ' completed vacancies with the fewest applicants.',
                        styles['Justify']))
     Story.append(Spacer(1,12))
     Story.append(jttable)
@@ -998,7 +1032,7 @@ def pdfbuilder(i):
                                 ' All retirement estimates are calculated from historical (3 year) leaver'
                                +' trends based on job family, sex, pay band and Mental Health Officer status. '
                                 +'There are currently ' + str(len(mhos))+
-                           ' staff with mental health officers (MHO) status within the '+i+ ' workforce. Traditionally,'
+                           ' staff with Mental Health Officer (MHO) status within the '+i+ ' workforce. Traditionally,'
                            +' MHOs can be expected to retire near 55.',
                             styles['Justify']))
     Story.append(Spacer(1, 12))
@@ -1011,7 +1045,7 @@ def pdfbuilder(i):
                             styles['Justify']))
     Story.append(Spacer(1,12))
     Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The below graph estimates retirement '
-                           +'risk for the '+i+' workforce.'+' The below table shows the '+str(len(vulndepts))+
+                           +'risk for the '+i+' workforce.'+' The below table shows the '+str(len(within_year))+
                                ' departments (WTE >10) with the highest percentage of staff estimated to retire within a year. ',
                                styles['Justify']))
 
@@ -1027,7 +1061,7 @@ def pdfbuilder(i):
 
     Story.append(PageBreak())
 
-    Story.append(Paragraph('<seq id = "level_1"/>. Absence Statistics - September 2019', styles['subtitle']))
+    Story.append(Paragraph('<seq id = "level_1"/>. Absence Statistics - December 2019', styles['subtitle']))
     Story.append(Spacer(1,12))
     Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The below chart shows the proportion of WTE allocated to annual leave, maternity leave'
                            +', sickness and other absence and service delivery.', styles['Justify']))
@@ -1035,11 +1069,11 @@ def pdfbuilder(i):
     Story.append(pie)
     Story.append(Spacer(1,24))
     Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The below table shows the '+str(len(abs_pivot))+ ' departments (>20 inpost WTE) with the highest overall absence'
-                            +' percentages in the ' +i+ ' workforce in September 2019.', styles['Justify']))
+                            +' percentages in the ' +i+ ' workforce in December 2019.', styles['Justify']))
     Story.append(Spacer(1, 12))
     Story.append(abs_table1)
     Story.append(PageBreak())
-    Story.append(Paragraph('<seq id = "level_1"/>. Backfill Statistics - September 2019', styles['subtitle']))
+    Story.append(Paragraph('<seq id = "level_1"/>. Backfill Statistics - December 2019', styles['subtitle']))
 
     Story.append(Spacer(1, 12))
 
@@ -1084,6 +1118,6 @@ def pdfbuilder(i):
 
 # average_x('Nursing And Midwifery', 1)
 #absenceTypes()
-pdfbuilder("MFT Older Peoples' Workstream")
+pdfbuilder("MFT Neurosciences")
 #econcans()
 #bank_reasons()
