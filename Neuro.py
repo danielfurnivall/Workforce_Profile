@@ -246,20 +246,27 @@ def docs():
     #print(docs['Sub_Job_Family'].value_counts())
     print(docs_data['ProjRet'].value_counts())
     docpiv = pd.pivot_table(docs_data, values='WTE',index='ProjRet', columns='Sub_Job_Family', fill_value=0, aggfunc=np.sum).round(1)
-    print(docpiv)
+    docpiv['Projected Retirement'] = docpiv.index
+    docpiv = docpiv[['Projected Retirement', 'Consultant', 'Other', 'Training Grades']]
+    return docpiv
 
 def spec_nursing():
     print(df['department'].value_counts())
     spec_nurses = df[(df['department'] == 'Sgh-Neuro Ms Specialist Nurse') | (df['department'] == 'Medical Specialist Nursing')]
     print(len(spec_nurses))
     specpiv = pd.pivot_table(spec_nurses, values='WTE', index='ProjRet', columns='department', fill_value=0, aggfunc=np.sum).round(1)
-    print(specpiv)
+    specpiv['Projected Retirement'] = specpiv.index
+    specpiv = specpiv[['Projected Retirement', 'Medical Specialist Nursing', 'Sgh-Neuro Ms Specialist Nurse']]
+
+    return specpiv
 
 def nurses():
     nurses_data = df[df['Job_Family'] == 'Nursing and Midwifery']
     nurses_piv = pd.pivot_table(nurses_data, values='WTE', index='ProjRet', columns='Pay_Band', fill_value=0, aggfunc=np.sum).round(1)
-
-    print(nurses_piv)
+    nurses_piv['Projected Retirement'] = nurses_piv.index
+    nurses_piv = nurses_piv[['Projected Retirement', '2', '3', '5','6','7']]
+    nurses_piv.rename(inplace=True, columns={'2':'Band 2','3':'Band 3','5':'Band 5','6':'Band 6','7':'Band 7'})
+    return nurses_piv
 
 def wards():
     #This provides a pay band breakdown of wards for nursing staff. I have checked for med staff but there are none, so
@@ -269,7 +276,9 @@ def wards():
     ward_data_nurs = nurs_data[(nurs_data['department'] == 'Qeuh-Ward 67 Neurology') | (nurs_data['department'] == 'Qeuh-Ward 68 Neurology')]
 
     ward_piv_nurs = pd.pivot_table(ward_data_nurs, values='WTE', index='Pay_Band', columns='department', fill_value=0, aggfunc=np.sum).round(1)
-    print(ward_piv_nurs)
+    ward_piv_nurs['Pay Band'] = ward_piv_nurs.index
+    ward_piv_nurs = ward_piv_nurs[['Pay Band', 'Qeuh-Ward 67 Neurology', 'Qeuh-Ward 68 Neurology']]
+    return ward_piv_nurs
 
 
 def jobtrain():
@@ -698,7 +707,10 @@ def pdfbuilder(i):
     #gframe, eccc = econcans()
     absenceTypes()
     retirementProj()
-
+    n_data = nurses()
+    d_data = docs()
+    w_data = wards()
+    s_data = spec_nursing()
     agecounts(i)
     subDir1WTE()
     jobFamWTE()
@@ -831,6 +843,43 @@ def pdfbuilder(i):
                                         ('BOX', (0, 1), (q[0], q[1]), 0.006 * inch, colors.black),
                                         ('BOX', (0, 0), (q[0], 0), 0.006 * inch, (0, 0, 0))
                                         ]))
+    q = (len(d_data.columns) - 1, len(d_data))
+    docstable = Table(np.vstack((list(d_data), np.array(d_data))).tolist())
+    docstable.setStyle(TableStyle([('BACKGROUND', (0, 0), (q[0], 0), colors.HexColor("#005EB8")),
+                                     ('TEXTCOLOR', (0, 0), (q[0], 0), colors.HexColor("#E8EDEE")),
+                                     ('FONTSIZE', (0, 1), (q[0], q[1]), 8),
+                                     ('ALIGN', (1, 1), (q[0], q[1]), 'CENTER'),
+                                     ('BOX', (0, 1), (q[0], q[1]), 0.006 * inch, colors.black),
+                                     ('BOX', (0, 0), (q[0], 0), 0.006 * inch, (0, 0, 0))
+                                     ]))
+    q = (len(n_data.columns) - 1, len(n_data))
+    nursetable = Table(np.vstack((list(n_data), np.array(n_data))).tolist())
+    nursetable.setStyle(TableStyle([('BACKGROUND', (0, 0), (q[0], 0), colors.HexColor("#005EB8")),
+                                   ('TEXTCOLOR', (0, 0), (q[0], 0), colors.HexColor("#E8EDEE")),
+                                   ('FONTSIZE', (0, 1), (q[0], q[1]), 8),
+                                   ('ALIGN', (1, 1), (q[0], q[1]), 'CENTER'),
+                                   ('BOX', (0, 1), (q[0], q[1]), 0.006 * inch, colors.black),
+                                   ('BOX', (0, 0), (q[0], 0), 0.006 * inch, (0, 0, 0))
+                                   ]))
+    q = (len(w_data.columns) - 1, len(w_data))
+    wardtable = Table(np.vstack((list(w_data), np.array(w_data))).tolist())
+    wardtable.setStyle(TableStyle([('BACKGROUND', (0, 0), (q[0], 0), colors.HexColor("#005EB8")),
+                                    ('TEXTCOLOR', (0, 0), (q[0], 0), colors.HexColor("#E8EDEE")),
+                                    ('FONTSIZE', (0, 1), (q[0], q[1]), 8),
+                                    ('ALIGN', (1, 1), (q[0], q[1]), 'CENTER'),
+                                    ('BOX', (0, 1), (q[0], q[1]), 0.006 * inch, colors.black),
+                                    ('BOX', (0, 0), (q[0], 0), 0.006 * inch, (0, 0, 0))
+                                    ]))
+    q = (len(s_data.columns) - 1, len(s_data))
+    spectable = Table(np.vstack((list(s_data), np.array(s_data))).tolist())
+    spectable.setStyle(TableStyle([('BACKGROUND', (0, 0), (q[0], 0), colors.HexColor("#005EB8")),
+                                   ('TEXTCOLOR', (0, 0), (q[0], 0), colors.HexColor("#E8EDEE")),
+                                   ('FONTSIZE', (0, 1), (q[0], q[1]), 8),
+                                   ('ALIGN', (1, 1), (q[0], q[1]), 'CENTER'),
+                                   ('BOX', (0, 1), (q[0], q[1]), 0.006 * inch, colors.black),
+                                   ('BOX', (0, 0), (q[0], 0), 0.006 * inch, (0, 0, 0))
+                                   ]))
+
     q = (len(jobtrain_pivot.columns) - 1, len(jobtrain_pivot))
     jttable = Table(np.vstack((list(jobtrain_pivot), np.array(jobtrain_pivot))).tolist())
     jttable.setStyle(TableStyle([('BACKGROUND', (0, 0), (q[0], 0), colors.HexColor("#005EB8")),
@@ -969,9 +1018,12 @@ def pdfbuilder(i):
     Story.append(Spacer(1, 60))
     Story.append(subhead2)
     Story.append(Spacer(1, 136))
+
     Story.append(Paragraph('<b>Contents</b>', styles['subtitle']))
     Story.append(Spacer(1, 24))
     Story.append(Paragraph('Workforce In-Post', styles['subtitle']))
+    Story.append(Spacer(1, 24))
+    Story.append(Paragraph('Neurology Wards and Specialist Nursing', styles['subtitle']))
     Story.append(Spacer(1, 24))
     # Story.append(Paragraph('Key Roles', styles['subtitle']))
     # Story.append(Spacer(1, 24))
@@ -1020,6 +1072,22 @@ def pdfbuilder(i):
     Story.append(Spacer(1, 12))
     Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The above graph shows the WTE by Pay Band across the '+i+' workforce.'+
                             'The median banding across this workforce is '+str(int(bandav))+'.', styles['Justify']))
+    Story.append(Spacer(1, 24))
+    Story.append(PageBreak())
+    Story.append(Paragraph('<seqChain order = "level_1 level_2"/> <seq id="level_1"/>.' +
+                           ' Neurology Wards and Specialist Nursing', styles['subtitle']))
+    Story.append(Spacer(1, 24))
+    Story.append(Paragraph(
+        '<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The below graph shows the banding split within two major '
+        'wards within the ' + i + ' workforce.', styles['Justify']))
+    Story.append(Spacer(1, 24))
+    Story.append(wardtable)
+    Story.append(Spacer(1, 24))
+    Story.append(Paragraph(
+        '<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The below graph shows retirement projections for '
+        'specialist nurses within '+ i+ '.', styles['Justify']))
+    Story.append(Spacer(1, 24))
+    Story.append(spectable)
     Story.append(Spacer(1, 24))
     # Story.append(Paragraph('Key Roles', styles['subtitle']))
     # Story.append(Spacer(1,24))
@@ -1084,6 +1152,19 @@ def pdfbuilder(i):
     Story.append(Spacer(1, 12))
     Story.append(retirement_table)
     Story.append(Spacer(1, 12))
+
+    Story.append(Paragraph(
+        '<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The tables below show the retirement projections for'
+        + ' the largest staff groups within the ' + i + ' workforce. The first table shows the position for '
+        +'Nursing and Midwifery, whereas the second shows Medical and Dental.',
+        styles['Justify']))
+    Story.append(Spacer(1, 12))
+    Story.append(nursetable)
+    Story.append(Spacer(1, 12))
+    Story.append(docstable)
+    Story.append(Spacer(1, 24))
+
+    Story.append(PageBreak())
     Story.append(Paragraph('<seq id = "level_1"/>. Longer Term - Staff over 55', styles['subtitle']))
     Story.append(Spacer(1,12))
     Story.append(Paragraph('<b><seq id = "level_1" inc="no"/>.<seq id="level_2"/></b>. The table below shows the departments with the highest proportion of staff who are over '
@@ -1150,10 +1231,10 @@ def pdfbuilder(i):
 
 # average_x('Nursing And Midwifery', 1)
 #absenceTypes()
-docs()
-spec_nursing()
-nurses()
-wards()
-#pdfbuilder("MFT Neurosciences")
+# docs()
+# spec_nursing()
+# nurses()
+# wards()
+pdfbuilder("MFT Neurosciences")
 #econcans()
 #bank_reasons()
