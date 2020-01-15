@@ -239,6 +239,38 @@ def econcans():
         # else:
         #     print(i + "not in")
 
+def docs():
+    #this pulls all docs out of the dataset and breaks down their retirement projections
+    docs_data = df[df['Job_Family'] == 'Medical and Dental']
+    #print(len(docs))
+    #print(docs['Sub_Job_Family'].value_counts())
+    print(docs_data['ProjRet'].value_counts())
+    docpiv = pd.pivot_table(docs_data, values='WTE',index='ProjRet', columns='Sub_Job_Family', fill_value=0, aggfunc=np.sum).round(1)
+    print(docpiv)
+
+def spec_nursing():
+    print(df['department'].value_counts())
+    spec_nurses = df[(df['department'] == 'Sgh-Neuro Ms Specialist Nurse') | (df['department'] == 'Medical Specialist Nursing')]
+    print(len(spec_nurses))
+    specpiv = pd.pivot_table(spec_nurses, values='WTE', index='ProjRet', columns='department', fill_value=0, aggfunc=np.sum).round(1)
+    print(specpiv)
+
+def nurses():
+    nurses_data = df[df['Job_Family'] == 'Nursing and Midwifery']
+    nurses_piv = pd.pivot_table(nurses_data, values='WTE', index='ProjRet', columns='Pay_Band', fill_value=0, aggfunc=np.sum).round(1)
+
+    print(nurses_piv)
+
+def wards():
+    #This provides a pay band breakdown of wards for nursing staff. I have checked for med staff but there are none, so
+    # work doesn't need to be done to isolate them.
+    print(df['Job_Family'].value_counts())
+    nurs_data = df[df['Job_Family'] == 'Nursing and Midwifery']
+    ward_data_nurs = nurs_data[(nurs_data['department'] == 'Qeuh-Ward 67 Neurology') | (nurs_data['department'] == 'Qeuh-Ward 68 Neurology')]
+
+    ward_piv_nurs = pd.pivot_table(ward_data_nurs, values='WTE', index='Pay_Band', columns='department', fill_value=0, aggfunc=np.sum).round(1)
+    print(ward_piv_nurs)
+
 
 def jobtrain():
     #This pulls the jobtrain report entitled "All jobs with no. vacancies, no. applicants"
@@ -1118,6 +1150,10 @@ def pdfbuilder(i):
 
 # average_x('Nursing And Midwifery', 1)
 #absenceTypes()
-pdfbuilder("MFT Neurosciences")
+docs()
+spec_nursing()
+nurses()
+wards()
+#pdfbuilder("MFT Neurosciences")
 #econcans()
 #bank_reasons()
